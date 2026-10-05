@@ -1,0 +1,7 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body { @apply bg-surface text-cream font-sans antialiased; }
+@layer components {
+  .card { @apply rounded-3xl border border-gold/15 bg-gradient-to-br from-maroon/30 to-surface p-4 shadow-lg shadow-black/30 transition duration-200 hover:shadow-glow; }
+  .tap { @apply active:scale-95 transition duration-200; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
