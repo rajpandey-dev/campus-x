@@ -1,21 +1,759 @@
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState } from 'react'
+import {
+  X,
+  CalendarPlus,
+  ShoppingBag,
+  Search,
+  MessageCircle,
+  ImagePlus,
+  ArrowLeft,
+} from 'lucide-react'
+
 import { useApp } from '../../store/AppContext'
-const ACTIONS = ['Create Hangout', 'Create Event', 'Create Study Group', 'Post Item Listing']
+import Button from '../ui/Button'
+
+const initialSellForm = {
+  title: '',
+  category: 'Books',
+  price: '',
+  condition: 'Good',
+  location: '',
+  description: '',
+  image: null,
+  imageUrl: '',
+}
+
+const initialEventForm = {
+  title: '',
+  date: '',
+  time: '',
+  venue: '',
+  description: '',
+}
+
 export default function CreateSheet() {
   const { state, dispatch, toast } = useApp()
-  const close = () => dispatch({ type: 'createOpen', value: false })
+
+  const [screen, setScreen] = useState('menu')
+
+  const [sellForm, setSellForm] = useState(initialSellForm)
+
+  const [eventForm, setEventForm] = useState(initialEventForm)
+  const [eventSubmitting, setEventSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!state.createOpen) {
+      setScreen('menu')
+    }
+  }, [state.createOpen])
+
+  if (!state.createOpen) {
+    return null
+  }
+
+  const close = () => {
+    dispatch({
+      type: 'createOpen',
+      value: false,
+    })
+
+    setScreen('menu')
+  }
+
+  const updateSell = (key, value) => {
+    setSellForm((previous) => ({
+      ...previous,
+      [key]: value,
+    }))
+  }
+
+  const updateEvent = (key, value) => {
+    setEventForm((previous) => ({
+      ...previous,
+      [key]: value,
+    }))
+  }
+
+  const handleImage = (event) => {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    const imageUrl = URL.createObjectURL(file)
+
+    setSellForm((previous) => ({
+      ...previous,
+      image: file,
+      imageUrl,
+    }))
+  }
+
+  const openSell = () => {
+    setScreen('sell')
+  }
+
+  const openEvent = () => {
+    setScreen('event')
+  }
+
+  const openStudyBuddy = () => {
+    dispatch({
+      type: 'createOpen',
+      value: false,
+    })
+
+    dispatch({
+      type: 'tab',
+      value: 'discover',
+    })
+
+    setScreen('menu')
+  }
+
+  const openChat = () => {
+    dispatch({
+      type: 'createOpen',
+      value: false,
+    })
+
+    dispatch({
+      type: 'tab',
+      value: 'chat',
+    })
+
+    setScreen('menu')
+  }
+
+  const handlePostItem = (event) => {
+    event.preventDefault()
+
+    if (!sellForm.title.trim()) {
+      toast('Please enter an item name')
+      return
+    }
+
+    if (!sellForm.price || Number(sellForm.price) <= 0) {
+      toast('Please enter a valid price')
+      return
+    }
+
+    if (!sellForm.location.trim()) {
+      toast('Please enter a location')
+      return
+    }
+
+    const newItem = {
+      id: Date.now(),
+
+      title: sellForm.title.trim(),
+
+      category: sellForm.category,
+
+      price: Number(sellForm.price),
+
+      seller: state.user?.name || 'You',
+
+      condition: sellForm.condition,
+
+      location: sellForm.location.trim(),
+
+      description: sellForm.description.trim(),
+
+      image: sellForm.imageUrl || null,
+
+      emoji:
+        sellForm.category === 'Books'
+          ? '📚'
+          : sellForm.category === 'Electronics'
+            ? '💻'
+            : sellForm.category === 'Furniture'
+              ? '🪑'
+              : sellForm.category === 'Clothing'
+                ? '👕'
+                : '📦',
+    }
+
+    dispatch({
+      type: 'addResaleItem',
+      item: newItem,
+    })
+
+    toast('Item posted successfully')
+
+    setSellForm(initialSellForm)
+
+    close()
+  }
+
+  const handleCreateEvent = async (event) => {
+    event.preventDefault()
+
+    if (!eventForm.title.trim()) {
+      toast('Please enter an event name')
+      return
+    }
+
+    if (!eventForm.date) {
+      toast('Please select an event date')
+      return
+    }
+
+    if (!eventForm.time) {
+      toast('Please select an event time')
+      return
+    }
+
+    if (!eventForm.venue.trim()) {
+      toast('Please enter a venue')
+      return
+    }
+
+    if (!state.token) {
+      toast('Please log in to create an event')
+      return
+    }
+
+    try {
+      setEventSubmitting(true)
+
+      const response = await fetch('http://127.0.0.1:8000/events/', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({
+          title: eventForm.title.trim(),
+          event_date: eventForm.date,
+          event_time: eventForm.time,
+          venue: eventForm.venue.trim(),
+          description: eventForm.description.trim() || null,
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+          `Could not create event (HTTP ${response.status}).`
+        )
+      }
+
+      const newEvent = {
+        ...data,
+        id: data.id,
+        isPersistent: true,
+        when: `${data.event_date} · ${data.event_time}`,
+        going: 0,
+        createdBy: state.user?.name || 'You',
+      }
+
+      dispatch({
+        type: 'addEvent',
+        event: newEvent,
+      })
+
+      toast('Event created successfully')
+      setEventForm(initialEventForm)
+      close()
+    } catch (error) {
+      toast(error.message || 'Could not create event')
+    } finally {
+      setEventSubmitting(false)
+    }
+  }
+
   return (
-    <AnimatePresence>
-      {state.createOpen && (
-        <motion.div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close}>
-          <motion.div role="dialog" aria-label="Create" className="w-full max-w-md space-y-2 rounded-t-3xl border-t border-gold/20 bg-surface p-5"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 26, stiffness: 300 }} onClick={e => e.stopPropagation()}>
-            {ACTIONS.map(a => (
-              <button key={a} className="tap card w-full text-left font-semibold" onClick={() => { close(); toast(`${a} coming soon`) }}>{a}</button>
-            ))}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+      <div
+        className="
+          w-full max-w-lg
+          max-h-[90vh]
+          overflow-y-auto
+          rounded-t-[32px]
+          bg-white
+          shadow-2xl
+          sm:rounded-[32px]
+        "
+      >
+        {/* HEADER */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-campus-border bg-white px-5 py-4">
+          <div className="flex items-center gap-3">
+            {screen !== 'menu' && (
+              <button
+                type="button"
+                onClick={() => setScreen('menu')}
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-campus-gray"
+                aria-label="Back"
+              >
+                <ArrowLeft size={19} />
+              </button>
+            )}
+
+            <div>
+              <h2 className="text-lg font-bold">
+                {screen === 'menu'
+                  ? 'Create'
+                  : screen === 'sell'
+                    ? 'Sell an Item'
+                    : 'Create Event'}
+              </h2>
+
+              <p className="text-xs text-campus-muted">
+                {screen === 'menu'
+                  ? 'What would you like to create?'
+                  : screen === 'sell'
+                    ? 'List something for students'
+                    : 'Create something for your campus'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={close}
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-campus-gray"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* MENU */}
+        {screen === 'menu' && (
+          <div className="space-y-3 p-5">
+
+            <button
+              type="button"
+              onClick={openEvent}
+              className="
+                flex w-full items-center gap-4
+                rounded-2xl border border-campus-border
+                p-4 text-left
+                transition hover:bg-campus-gray
+                active:scale-[0.99]
+              "
+            >
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-campus-yellow">
+                <CalendarPlus size={23} />
+              </div>
+
+              <div>
+                <p className="font-bold">Create Event</p>
+                <p className="mt-1 text-sm text-campus-muted">
+                  Create a campus event for other students
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={openSell}
+              className="
+                flex w-full items-center gap-4
+                rounded-2xl border border-campus-border
+                p-4 text-left
+                transition hover:bg-campus-gray
+                active:scale-[0.99]
+              "
+            >
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-campus-lime">
+                <ShoppingBag size={23} />
+              </div>
+
+              <div>
+                <p className="font-bold">Sell an Item</p>
+                <p className="mt-1 text-sm text-campus-muted">
+                  Sell books, electronics, furniture and more
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={openStudyBuddy}
+              className="
+                flex w-full items-center gap-4
+                rounded-2xl border border-campus-border
+                p-4 text-left
+                transition hover:bg-campus-gray
+                active:scale-[0.99]
+              "
+            >
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-campus-gray">
+                <Search size={23} />
+              </div>
+
+              <div>
+                <p className="font-bold">Find Study Buddy</p>
+                <p className="mt-1 text-sm text-campus-muted">
+                  Find students to study and learn with
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={openChat}
+              className="
+                flex w-full items-center gap-4
+                rounded-2xl border border-campus-border
+                p-4 text-left
+                transition hover:bg-campus-gray
+                active:scale-[0.99]
+              "
+            >
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-campus-gray">
+                <MessageCircle size={23} />
+              </div>
+
+              <div>
+                <p className="font-bold">Start a Chat</p>
+                <p className="mt-1 text-sm text-campus-muted">
+                  Open your conversations
+                </p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* SELL FORM */}
+        {screen === 'sell' && (
+          <form
+            onSubmit={handlePostItem}
+            className="space-y-5 p-5"
+          >
+            {/* IMAGE */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Item Photo
+              </label>
+
+              {sellForm.imageUrl ? (
+                <div className="relative overflow-hidden rounded-2xl border border-campus-border">
+                  <img
+                    src={sellForm.imageUrl}
+                    alt="Item preview"
+                    className="h-52 w-full object-cover"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSellForm((previous) => ({
+                        ...previous,
+                        image: null,
+                        imageUrl: '',
+                      }))
+                    }
+                    className="
+                      absolute right-3 top-3
+                      grid h-9 w-9 place-items-center
+                      rounded-full bg-black/70 text-white
+                    "
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  className="
+                    flex h-36 cursor-pointer flex-col
+                    items-center justify-center
+                    rounded-2xl border-2 border-dashed
+                    border-campus-border
+                    bg-campus-gray
+                    transition hover:bg-gray-100
+                  "
+                >
+                  <ImagePlus size={28} />
+
+                  <span className="mt-2 text-sm font-semibold">
+                    Add a photo
+                  </span>
+
+                  <span className="mt-1 text-xs text-campus-muted">
+                    JPG, PNG or WEBP
+                  </span>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImage}
+                    className="hidden"
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* TITLE */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Item Name
+              </label>
+
+              <input
+                value={sellForm.title}
+                onChange={(e) =>
+                  updateSell('title', e.target.value)
+                }
+                placeholder="e.g. Engineering Mathematics Book"
+                className="
+                  w-full rounded-2xl border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            {/* CATEGORY */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Category
+              </label>
+
+              <select
+                value={sellForm.category}
+                onChange={(e) =>
+                  updateSell('category', e.target.value)
+                }
+                className="
+                  w-full rounded-2xl border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              >
+                <option>Books</option>
+                <option>Electronics</option>
+                <option>Furniture</option>
+                <option>Clothing</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            {/* PRICE + CONDITION */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Price (₹)
+                </label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={sellForm.price}
+                  onChange={(e) =>
+                    updateSell('price', e.target.value)
+                  }
+                  placeholder="500"
+                  className="
+                    w-full rounded-2xl border border-campus-border
+                    bg-white px-4 py-3 outline-none
+                    focus:border-campus-black
+                  "
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Condition
+                </label>
+
+                <select
+                  value={sellForm.condition}
+                  onChange={(e) =>
+                    updateSell('condition', e.target.value)
+                  }
+                  className="
+                    w-full rounded-2xl border border-campus-border
+                    bg-white px-4 py-3 outline-none
+                    focus:border-campus-black
+                  "
+                >
+                  <option>Like New</option>
+                  <option>Good</option>
+                  <option>Fair</option>
+                  <option>Used</option>
+                </select>
+              </div>
+            </div>
+
+            {/* LOCATION */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Location
+              </label>
+
+              <input
+                value={sellForm.location}
+                onChange={(e) =>
+                  updateSell('location', e.target.value)
+                }
+                placeholder="e.g. Hostel Block A"
+                className="
+                  w-full rounded-2xl border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            {/* DESCRIPTION */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Description
+              </label>
+
+              <textarea
+                value={sellForm.description}
+                onChange={(e) =>
+                  updateSell('description', e.target.value)
+                }
+                rows={4}
+                placeholder="Tell students about the item..."
+                className="
+                  w-full resize-none rounded-2xl
+                  border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full"
+            >
+              Post Item
+            </Button>
+          </form>
+        )}
+
+        {/* EVENT FORM */}
+        {screen === 'event' && (
+          <form
+            onSubmit={handleCreateEvent}
+            className="space-y-5 p-5"
+          >
+            {/* TITLE */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Event Name
+              </label>
+
+              <input
+                value={eventForm.title}
+                onChange={(e) =>
+                  updateEvent('title', e.target.value)
+                }
+                placeholder="e.g. Campus Coding Night"
+                className="
+                  w-full rounded-2xl border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            {/* DATE + TIME */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Date
+                </label>
+
+                <input
+                  type="date"
+                  value={eventForm.date}
+                  onChange={(e) =>
+                    updateEvent('date', e.target.value)
+                  }
+                  className="
+                    w-full rounded-2xl border border-campus-border
+                    bg-white px-4 py-3 outline-none
+                    focus:border-campus-black
+                  "
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Time
+                </label>
+
+                <input
+                  type="time"
+                  value={eventForm.time}
+                  onChange={(e) =>
+                    updateEvent('time', e.target.value)
+                  }
+                  className="
+                    w-full rounded-2xl border border-campus-border
+                    bg-white px-4 py-3 outline-none
+                    focus:border-campus-black
+                  "
+                />
+              </div>
+            </div>
+
+            {/* VENUE */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Venue
+              </label>
+
+              <input
+                value={eventForm.venue}
+                onChange={(e) =>
+                  updateEvent('venue', e.target.value)
+                }
+                placeholder="e.g. Main Auditorium"
+                className="
+                  w-full rounded-2xl border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            {/* DESCRIPTION */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold">
+                Description
+              </label>
+
+              <textarea
+                value={eventForm.description}
+                onChange={(e) =>
+                  updateEvent('description', e.target.value)
+                }
+                rows={4}
+                placeholder="Tell students about your event..."
+                className="
+                  w-full resize-none rounded-2xl
+                  border border-campus-border
+                  bg-white px-4 py-3 outline-none
+                  focus:border-campus-black
+                "
+              />
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full"
+              disabled={eventSubmitting}
+            >
+              {eventSubmitting ? 'Creating Event...' : 'Create Event'}
+            </Button>
+          </form>
+        )}
+      </div>
+    </div>
   )
 }

@@ -1,3 +1,35 @@
-export default function Chip({ active, children, ...p }) {
-  return <button {...p} className={`tap min-h-[36px] shrink-0 rounded-full border px-3 text-sm ${active ? 'border-gold bg-gold/15 text-gold' : 'border-gold/20 text-cream/80'}`}>{children}</button>
+export default function Chip({
+  children,
+  active = false,
+  className = '',
+  ...props
+}) {
+  return (
+    <button
+      {...props}
+      className={`
+        inline-flex
+        min-h-[36px]
+        items-center
+        justify-center
+        rounded-full
+        px-4
+        text-sm
+        font-semibold
+        transition-all
+        duration-200
+        active:scale-95
+
+        ${
+          active
+            ? 'bg-campus-black text-campus-white'
+            : 'border border-campus-border bg-white text-campus-black hover:bg-campus-gray'
+        }
+
+        ${className}
+      `}
+    >
+      {children}
+    </button>
+  )
 }
